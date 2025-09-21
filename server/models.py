@@ -11,3 +11,34 @@ metadata = MetaData(
 )
 
 
+db = SQLAlchemy(metadata=metadata)
+
+
+class Restaurant(db.Model, SerializerMixin):
+    __tablename__ = "restaurants"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String)
+    address = db.Column(db.String)
+
+    restaurant_pizzas = db.relationship("RestaurantPizza", back_populates="restaurant", cascade="all, delete-orphan")
+
+    serialize_rules = ("-restaurant_pizzas.restaurant",)
+
+    def __repr__(self):
+        return f"<Restaurant {self.name}>"
+
+
+class Pizza(db.Model, SerializerMixin):
+    __tablename__ = "pizzas"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String)
+    ingredients = db.Column(db.String)
+
+    restaurant_pizzas = db.relationship("RestaurantPizza", back_populates="pizza", cascade="all, delete-orphan")
+
+    serialize_rules = ("-restaurant_pizzas.pizza",)
+
+    def __repr__(self):
+        return f"<Pizza {self.name}, {self.ingredients}>"
