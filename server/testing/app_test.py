@@ -83,7 +83,7 @@ class TestApp:
         '''returns an error message and 404 status code with DELETE request to /restaurants/<int:id> by a non-existent ID.'''
 
         with app.app_context():
-            response = app.test_client().get('/restaurants/0')
+            response = app.test_client().delete('/restaurants/0')
             assert response.status_code == 404
             assert response.json.get('error') == "Restaurant not found"
 
@@ -187,5 +187,16 @@ class TestApp:
                 }
             )
 
+            assert response.status_code == 400
+            assert response.json['errors'] == ["validation errors"]
+
+            # missing required fields
+            response = app.test_client().post(
+                '/restaurant_pizzas',
+                json={
+                    "price": 10,
+                    # missing pizza_id and restaurant_id
+                }
+            )
             assert response.status_code == 400
             assert response.json['errors'] == ["validation errors"]

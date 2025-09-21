@@ -1,72 +1,48 @@
-import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
-import PizzaForm from "./PizzaForm";
+import React, { useState, useEffect } from 'react';
 
-function Home() {
-  const [{ data: restaurant, error, status }, setRestaurant] = useState({
-    data: null,
-    error: null,
-    status: "pending",
-  });
-  const { id } = useParams();
+function Restaurants() {
+  const [restaurants, setRestaurants] = useState([]);
 
   useEffect(() => {
-    fetch(`/restaurants/${id}`).then((r) => {
-      if (r.ok) {
-        r.json().then((restaurant) =>
-          setRestaurant({ data: restaurant, error: null, status: "resolved" })
-        );
+    fetch('http://localhost:5555/restaurants')
+      .then(response => response.json())
+      .then(data => setRestaurants(data))
+      .catch(error => console.error('Error:', error));
+  }, []);
+
+  const handleDelete = (id) => {
+    fetch(`http://localhost:5555/restaurants/${id}`, {
+      method: 'DELETE'
+    })
+    .then(response => {
+      if (response.ok) {
+        setRestaurants(restaurants.filter(restaurant => restaurant.id !== id));
       } else {
-        r.json().then((err) =>
-          setRestaurant({ data: null, error: err.error, status: "rejected" })
-        );
+        console.error('Failed to delete restaurant');
       }
-    });
-  }, [id]);
-
-  function handleAddPizza(newRestaurantPizza) {
-    setRestaurant({
-      data: {
-        ...restaurant,
-        restaurant_pizzas: [
-          ...restaurant.restaurant_pizzas,
-          newRestaurantPizza,
-        ],
-      },
-      error: null,
-      status: "resolved",
-    });
-  }
-
-  if (status === "pending") return <h1>Loading...</h1>;
-  if (status === "rejected") return <h1>Error: {error.error}</h1>;
+    })
+    .catch(error => console.error('Error:', error));
+  };
 
   return (
-    <section className="container">
-      <div className="card">
-        <h1>{restaurant.name}</h1>
-        <p>{restaurant.address}</p>
-      </div>
-      <div className="card">
-        <h2>Pizza Menu</h2>
-        {restaurant.restaurant_pizzas.map((restaurant_pizza) => (
-          <div key={restaurant_pizza.pizza.id}>
-            <h3>{restaurant_pizza.pizza.name}</h3>
-            <p>
-              <em>{restaurant_pizza.pizza.ingredients}</em>
-            </p>
-            <p>
-              <em>Price ${restaurant_pizza.price}</em>
-            </p>
+    <div style={{ padding: '2rem' }}>
+      <h1>Restaurants</h1>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem' }}>
+        {restaurants.map(restaurant => (
+          <div key={restaurant.id} style={{ border: '1px solid #ddd', padding: '1rem', borderRadius: '5px' }}>
+            <h2>{restaurant.name}</h2>
+            <p>{restaurant.address}</p>
+            <button 
+              onClick={() => handleDelete(restaurant.id)}
+              style={{ backgroundColor: '#dc3545', color: 'white', border: 'none', padding: '0.5rem 1rem', borderRadius: '3px' }}
+            >
+              Delete
+            </button>
           </div>
         ))}
       </div>
-      <div className="card">
-        <h3>Add New Pizza</h3>
-        <PizzaForm restaurantId={restaurant.id} onAddPizza={handleAddPizza} />
-      </div>
-    </section>
+    </div>
   );
 }
 
-export default Home;
+export default Restaurants;

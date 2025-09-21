@@ -1,76 +1,28 @@
-import { useEffect, useState } from "react";
+import React, { useState, useEffect } from 'react';
 
-function PizzaForm({ restaurantId, onAddPizza }) {
+function Pizzas() {
   const [pizzas, setPizzas] = useState([]);
-  const [pizzaId, setPizzaId] = useState("");
-  const [price, setPrice] = useState("");
-  const [formErrors, setFormErrors] = useState([]);
 
   useEffect(() => {
-    fetch("/pizzas")
-      .then((r) => r.json())
-      .then(setPizzas);
+    fetch('http://localhost:5555/pizzas')
+      .then(response => response.json())
+      .then(data => setPizzas(data))
+      .catch(error => console.error('Error:', error));
   }, []);
 
-  function handleSubmit(e) {
-    e.preventDefault();
-    const formData = {
-      pizza_id: pizzaId,
-      restaurant_id: restaurantId,
-      price,
-    };
-    fetch("/restaurant_pizzas", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(formData),
-    }).then((r) => {
-      if (r.ok) {
-        r.json().then((newPizzaRestaurant) => {
-          onAddPizza(newPizzaRestaurant);
-          setFormErrors([]);
-        });
-      } else {
-        r.json().then((err) => setFormErrors(err.errors));
-      }
-    });
-  }
-
   return (
-    <form onSubmit={handleSubmit}>
-      <label htmlFor="pizza_id">Pizza:</label>
-      <select
-        id="pizza_id"
-        name="pizza_id"
-        value={pizzaId}
-        onChange={(e) => setPizzaId(e.target.value)}
-      >
-        <option value="">Select a pizza</option>
-        {pizzas.map((pizza) => (
-          <option key={pizza.id} value={pizza.id}>
-            {pizza.name}
-          </option>
+    <div style={{ padding: '2rem' }}>
+      <h1>Pizzas</h1>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem' }}>
+        {pizzas.map(pizza => (
+          <div key={pizza.id} style={{ border: '1px solid #ddd', padding: '1rem', borderRadius: '5px' }}>
+            <h2>{pizza.name}</h2>
+            <p>{pizza.ingredients}</p>
+          </div>
         ))}
-      </select>
-      <label htmlFor="pizza_id">Price:</label>
-      <input
-        id="price"
-        name="price"
-        type="number"
-        value={price}
-        onChange={(e) => setPrice(parseInt(e.target.value))}
-      />
-      {formErrors.length > 0
-        ? formErrors.map((err) => (
-            <p key={err} style={{ color: "red" }}>
-              {err}
-            </p>
-          ))
-        : null}
-      <button type="submit">Add To Restaurant</button>
-    </form>
+      </div>
+    </div>
   );
 }
 
-export default PizzaForm;
+export default Pizzas;
