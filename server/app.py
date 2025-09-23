@@ -1,112 +1,131 @@
-#!/usr/bin/env python3
-from models import db, Restaurant, RestaurantPizza, Pizza
+from flask import Flask, request, jsonify
 from flask_migrate import Migrate
-from flask import Flask, request, make_response
-from flask_restful import Api, Resource
-import os
+from flask_cors import CORS
 
-BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-DATABASE = os.environ.get("DB_URI", f"sqlite:///{os.path.join(BASE_DIR, 'app.db')}")
+from models import db, Restaurant, Pizza, RestaurantPizza
 
 app = Flask(__name__)
-app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE
+app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///app.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-app.json.compact = False
-
+CORS(app)
+db.init_app(app)
 migrate = Migrate(app, db)
 
-db.init_app(app)
+@app.route('/')
+def home():
+    return '<h1>Pizza API</h1>'
 
-api = Api(app)
+@app.route('/restaurants', methods=['GET'])
+def get_restaurants():
+    restaurants = Restaurant.query.all()
+    return jsonify([{
+        "id": r.id,
+        "name": r.name,
+        "address": r.address
+    } for r in restaurants]), 200
 
+@app.route('/restaurants/<int:id>', methods=['GET'])
+def get_restaurant_by_id(id):
+    restaurant = Restaurant.query.get(id)
+    if not restaurant:
+        return jsonify({"error": "Restaurant not found"}), 404
 
-@app.route("/")
-def index():
-    return "<h1>Code challenge</h1>"
+    return jsonify(restaurant.to_dict()), 200
 
-class Restaurants(Resource):
-    def get(self):
-        restaurants = [restaurant.to_dict(only=("address", "id", "name")) for restaurant in Restaurant.query.all()]
+@app.route('/restaurants/<int:id>', methods=['DELETE'])
+def delete_restaurant(id):
+    restaurant = Restaurant.query.get(id)
+    if not restaurant:
+        return jsonify({"error": "Restaurant not found"}), 404
 
-        return make_response(
-            restaurants,
-            200
+    db.session.delete(restaurant)
+    db.session.commit()
+
+    return '', 204
+
+@app.route('/pizzas', methods=['GET'])
+def get_pizzas():
+    pizzas = Pizza.query.all()
+    return jsonify([{
+        "id": pizza.id,
+        "name": pizza.name,
+        "ingredients": pizza.ingredients
+    } for pizza in pizzas]), 200
+
+@app.route('/restaurant_pizzas', methods=['POST'])
+def create_restaurant_pizza():
+    data = request.get_json()
+    price = data.get("price")
+    pizza_id = data.get("pizza_id")
+    restaurant_id = data.get("restaurant_id")
+
+    if price is None or pizza_id is None or restaurant_id is None or not (1 <= price <= 30):
+        return jsonify({"errors": ["validation errors"]}), 400
+
+    try:
+        new_rp = RestaurantPizza(
+            price=price,
+            pizza_id=pizza_id,
+            restaurant_id=restaurant_id
         )
-    
-class RestaurantByID(Resource):
-    def get(self, id):
-        restaurant = Restaurant.query.filter_by(id=id).first()
+        db.session.add(new_rp)
+        db.session.commit()
 
-        if restaurant:
-            return make_response(
-                restaurant.to_dict(),
-                200
-            )
-        
-        return make_response(
-            {"error": "Restaurant not found"},
-            404
-        )
-    
-    def delete(self, id):
-        restaurant = Restaurant.query.filter_by(id=id).first()
+        pizza = Pizza.query.get(pizza_id)
+        restaurant = Restaurant.query.get(restaurant_id)
+        return jsonify({
+            "id": new_rp.id,
+            "pizza": {
+                "id": pizza.id,
+                "name": pizza.name,
+                "ingredients": pizza.ingredients
+            },
+            "pizza_id": new_rp.pizza_id,
+            "price": new_rp.price,
+            "restaurant": {
+                "id": restaurant.id,
+                "name": restaurant.name,
+                "address": restaurant.address
+            },
+            "restaurant_id": new_rp.restaurant_id
+        }), 201
 
-        if restaurant:
-            db.session.delete(restaurant)
+    except Exception:
+        db.session.rollback()
+        return jsonify({"errors": ["validation errors"]}), 400
+
+def test_creates_restaurant_pizzas(self):
+    '''creates one restaurant_pizzas using a pizza_id, restaurant_id, and price with a POST request to /restaurant_pizzas.'''
+
+    with app.app_context():
+        fake = Faker()
+        pizza = Pizza(name=fake.name(), ingredients=fake.sentence())
+        restaurant = Restaurant(name=fake.name(), address=fake.address())
+        db.session.add(pizza)
+        db.session.add(restaurant)
+        db.session.commit()
+
+        # delete if existing in case price differs
+        restaurant_pizza = RestaurantPizza.query.filter_by(
+            pizza_id=pizza.id, restaurant_id=restaurant.id).one_or_none()
+        if restaurant_pizza:
+            db.session.delete(restaurant_pizza)
             db.session.commit()
 
-            return make_response(
-                "",
-                204
-            )
-        
-        return make_response(
-            {"error": "Restaurant not found"},
-            404
-        )
-    
-class Pizzas(Resource):
-    def get(self):
-        pizzas = [pizza.to_dict(only=("id", "ingredients", "name")) for pizza in Pizza.query.all()]
-
-        return make_response(
-            pizzas,
-            200
+        response = app.test_client().post(
+            '/restaurant_pizzas',
+            json={
+                "price": 3,
+                "pizza_id": pizza.id,
+                "restaurant_id": restaurant.id,
+            }
         )
 
-class RestaurantPizzas(Resource):
-    def post(self):
-        try:
-            request_body = request.get_json()
-            new_pizza = RestaurantPizza(
-                price=request_body.get("price"),
-                pizza_id=request_body.get("pizza_id"),
-                restaurant_id=request_body.get("restaurant_id")
-            )
+        assert response.status_code == 201
+        assert response.content_type == 'application/json'
+        response = response.json
+        assert response['price'] == 3
+        assert response['pizza_id'] == pizza.id
 
-            db.session.add(new_pizza)
-            db.session.commit()
-
-            return make_response(
-                new_pizza.to_dict(),
-                201
-            )
-        
-        except ValueError:
-            return make_response(
-                {
-                  "errors": ["validation errors"]
-                },
-                400
-            )
-
-
-api.add_resource(Restaurants, "/restaurants")
-api.add_resource(RestaurantByID, "/restaurants/<int:id>")
-
-api.add_resource(Pizzas, "/pizzas")
-
-api.add_resource(RestaurantPizzas, "/restaurant_pizzas")
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     app.run(port=5555, debug=True)
